@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ordini Ristorante</title>
+  <style>
+    :root {
+      --accent: #4caf50;
+      --accent-dark: #45a049;
+      --danger: #e74c3c;
+      --warn: #e67e22;
+      --bg: #f4f4f4;
+      --card: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: #222;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg);
+      border-bottom: 1px solid #ddd;
+      padding: 10px 12px;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 6px 0;
+      font-weight: 600;
+      text-align: center;
+    }
+    .summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .total {
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .btn-reset {
+      background: var(--danger);
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .btn-reset:active { opacity: .85; }
+    .cart {
+      max-height: 160px;
+      overflow-y: auto;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    .cart li {
+      background: var(--card);
+      margin: 6px 0;
+      padding: 10px 12px;
+      border-radius: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.06);
+    }
+    .row-main { font-weight: 600; }
+    .row-sub { font-size: 14px; opacity: .8; }
+    .qty-controls {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .qty-btn {
+      border: none;
+      padding: 6px 10px;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .qty-minus { background: var(--warn); }
+    .qty-plus  { background: var(--accent); }
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(140px, 1fr));
+      gap: 10px;
+      max-width: 480px;
+      margin: 0 auto 16px auto;
+    }
+    .item-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 14px 10px;
+      font-size: 16px;
+      border-radius: 12px;
+      font-weight: 600;
+      width: 100%;
+      box-shadow: 0 2px 6px rgba(0,0,0,.08);
+    }
+    .item-btn:active { background: var(--accent-dark); }
+    .price { opacity: .9; font-weight: 400; font-size: 14px; display: block; }
+    @media (max-width: 360px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Ordini Ristorante</h1>
+    <div class="summary">
+      <div id="totale" class="total">Totale: € 0,00</div>
+      <button id="reset" class="btn-reset" type="button" aria-label="Svuota carrello">Svuota</button>
+    </div>
+    <ul id="listaOrdini" class="cart" aria-live="polite"></ul>
+  </header>
+
+  <main>
+    <div id="buttons" class="grid" aria-label="Prodotti ordinabili"></div>
+  </main>
+
+  <script>
+    // Catalogo prodotti
+    const PRODOTTI = [
+      { key: "toast",          nome: "Toast",           prezzo: 8 },
+      { key: "polpetta",       nome: "Polpetta",        prezzo: 8 },
+      { key: "ricotta",        nome: "Ricotta",         prezzo: 7 },
+      { key: "panella",        nome: "Panella",         prezzo: 7 },
+      { key: "vino_bianco",    nome: "Vino Bianco",     prezzo: 20 },
+      { key: "vino_bollicina", nome: "Vino Bollicina",  prezzo: 20 },
+      { key: "calice",         nome: "Calice",          prezzo: 5 },
+      { key: "spritz",         nome: "Spritz",          prezzo: 6 }
+    ];
+
+    // Stato del carrello: { key: { nome, prezzo, quantita } }
+    const carrello = {};
+
+    // Helpers
+    const formatEUR = (val) => val.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+
+    function ricalcolaTotale() {
+      let tot = 0;
+      for (const k in carrello) {
+        const { prezzo, quantita } = carrello[k];
+        tot += prezzo * quantita;
+      }
+      document.getElementById('totale').textContent = `Totale: ${formatEUR(tot)}`;
+    }
+
+    function renderLista() {
+      const ul = document.getElementById('listaOrdini');
+      ul.innerHTML = '';
+      Object.values(carrello).forEach(item => {
+        const li = document.createElement('li');
+        li.dataset.key = item.key;
+        const left = document.createElement('div');
+        left.innerHTML = `<div class="row-main">${item.nome} × ${item.quantita}</div>
+                          <div class="row-sub">${formatEUR(item.prezzo)} cad — ${formatEUR(item.prezzo * item.quantita)} tot</div>`;
+        const right = document.createElement('div');
+        right.className = 'qty-controls';
+        const btnMinus = document.createElement('button');
+        btnMinus.type = 'button';
+        btnMinus.className = 'qty-btn qty-minus';
+        btnMinus.textContent = '−';
+        btnMinus.dataset.action = 'minus';
+        btnMinus.setAttribute('aria-label', `Diminuisci ${item.nome}`);
+        const btnPlus = document.createElement('button');
+        btnPlus.type = 'button';
+        btnPlus.className = 'qty-btn qty-plus';
+        btnPlus.textContent = '+';
+        btnPlus.dataset.action = 'plus';
+        btnPlus.setAttribute('aria-label', `Aumenta ${item.nome}`);
+        right.appendChild(btnMinus);
+        right.appendChild(btnPlus);
+        li.appendChild(left);
+        li.appendChild(right);
+        ul.appendChild(li);
+      });
+      ricalcolaTotale();
+    }
+
+    function aggiungi(key) {
+      const prodotto = PRODOTTI.find(p => p.key === key);
+      if (!prodotto) return;
+      if (!carrello[key]) {
+        carrello[key] = { ...prodotto, quantita: 1 };
+      } else {
+        carrello[key].quantita += 1;
+      }
+      renderLista();
+    }
+
+    function cambiaQuantita(key, delta) {
+      if (!carrello[key]) return;
+      carrello[key].quantita += delta;
+      if (carrello[key].quantita <= 0) {
+        delete carrello[key];
+      }
+      renderLista();
+    }
+
+    function svuota() {
+      for (const k in carrello) delete carrello[k];
+      renderLista();
+    }
+
+    // --- Inizializzazione UI ---
+    // Crea i pulsanti prodotti (nessun inline onclick: compatibile ovunque)
+    const buttonsWrap = document.getElementById('buttons');
+    PRODOTTI.forEach(p => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'item-btn';
+      btn.dataset.key = p.key;
+      btn.innerHTML = `${p.nome}<span class="price">${formatEUR(p.prezzo)}</span>`;
+      buttonsWrap.appendChild(btn);
+    });
+
+    // Event delegation: click sui pulsanti prodotto
+    buttonsWrap.addEventListener('click', (e) => {
+      const btn = e.target.closest('button.item-btn');
+      if (!btn) return;
+      const key = btn.dataset.key;
+      aggiungi(key);
+    });
+
+    // Event delegation: + e − nella lista
+    document.getElementById('listaOrdini').addEventListener('click', (e) => {
+      const actionBtn = e.target.closest('button.qty-btn');
+      if (!actionBtn) return;
+      const li = e.target.closest('li');
+      const key = li?.dataset.key;
+      if (!key) return;
+      if (actionBtn.dataset.action === 'plus') cambiaQuantita(key, +1);
+      if (actionBtn.dataset.action === 'minus') cambiaQuantita(key, -1);
+    });
+
+    // Svuota carrello
+    document.getElementById('reset').addEventListener('click', svuota);
+
+    // Primo render
+    renderLista();
+  </script>
+</body>
+</html>
